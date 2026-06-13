@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Object Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Using your new preferred background color */
+            background-color: #020617; 
+        }
+
+        /* Using your new loader style */
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #6366f1;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Using your new active tab style */
+        .tab-button.active {
+            background: linear-gradient(to right, #6366f1, #8b5cf6);
+            color: white;
+            box-shadow: 0 0 10px rgba(99,102,241,0.5);
+            border-bottom: 2px solid transparent; /* Remove default border */
+        }
+        .tab-button {
+             border-bottom: 2px solid transparent;
+        }
+        
+        /* Using your new processing overlay style */
+        .processing-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem;
+            backdrop-filter: blur(4px);
+            transition: opacity 0.3s ease-in-out;
+            z-index: 10;
+        }
+
+        .prediction-item {
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+        .prediction-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-950 text-white min-h-screen flex flex-col items-center justify-center p-6">
+
+    <div class="w-full max-w-6xl mx-auto">
+        <header class="text-center mb-10">
+            <!-- Using your new header style -->
+            <h1 class="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-500 drop-shadow-lg">
+                AI Object Detection
+            </h1>
+            <p class="text-gray-400 mt-3">Upload an image or use your webcam for real-time detection.</p>
+        </header>
+
+        <!-- Using your new main card style -->
+        <main id="main-content" class="bg-gray-800/80 rounded-2xl shadow-2xl p-8 border border-gray-700 relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-transparent rounded-2xl"></div>
+
+            <!-- Tabs -->
+            <div class="flex mb-6 relative z-10 border-b border-gray-700">
+                <button id="image-tab-btn" class="tab-button flex-1 py-3 px-4 text-center font-medium text-gray-300 hover:bg-gray-700 transition rounded-t-lg active">
+                    <i class="fas fa-image mr-2"></i>Image
+                </button>
+                <button id="webcam-tab-btn" class="tab-button flex-1 py-3 px-4 text-center font-medium text-gray-300 hover:bg-gray-700 transition rounded-t-lg">
+                    <i class="fas fa-camera mr-2"></i>Webcam
+                </button>
+            </div>
+
+            <div id="content-area" class="relative z-10">
+                <!-- 2-column layout from our "Ultimate" version -->
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                    
+                    <!-- Left Column (Image/Webcam) -->
+                    <div class="lg:col-span-3">
+                        <!-- Image Tab Content -->
+                        <div id="image-tab">
+                            <div id="image-container" class="relative w-full mx-auto hidden group">
+                                <img id="uploaded-image" class="rounded-lg shadow-lg w-full h-auto border border-indigo-500/30" />
+                                <canvas id="image-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+                                <div id="image-processing-overlay" class="processing-overlay hidden">
+                                    <div class="loader mb-4"></div>
+                                    <p class="text-gray-200 font-medium">Detecting objects...</p>
+                                </div>
+                            </div>
+                            <!-- Using your new placeholder style -->
+                            <div id="image-placeholder" class="w-full mx-auto min-h-[400px] bg-gray-800 border-2 border-dashed border-gray-600 rounded-xl flex flex-col items-center justify-center text-gray-400 transition hover:border-indigo-500 hover:text-indigo-400 group">
+                                <svg class="w-16 h-16 mb-3 text-gray-500 group-hover:text-indigo-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <p class="text-lg font-medium">Drag & drop or upload an image</p>
+                            </div>
+                        </div>
+                        <!-- Webcam Tab Content -->
+                        <div id="webcam-tab" class="hidden">
+                             <div class="relative w-full mx-auto bg-black rounded-xl overflow-hidden shadow-xl border border-gray-700">
+                                <video id="webcam" autoplay playsinline muted class="w-full h-auto transform -scale-x-100"></video>
+                                <canvas id="webcam-canvas" class="absolute top-0 left-0 w-full h-full transform -scale-x-100"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column (Controls & Predictions) -->
+                    <div class="lg:col-span-2">
+                        <div class="h-full bg-gray-900/50 rounded-lg p-4 flex flex-col">
+                             <!-- Image Controls -->
+                            <div id="image-controls" class="grid grid-cols-2 gap-4">
+                                <!-- Using your new button style -->
+                                <label for="file-upload" class="cursor-pointer bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 px-4 text-sm text-center rounded-lg shadow-lg flex items-center justify-center transition-all transform hover:scale-105 active:scale-95">
+                                    <i class="fas fa-upload mr-2"></i> Upload
+                                </label>
+                                <input id="file-upload" type="file" class="hidden" accept="image/*">
+                                <!-- Using your new button style -->
+                                <button id="detect-image-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 text-sm rounded-lg shadow-lg flex items-center justify-center transition-all transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
+                                    <i class="fas fa-microchip mr-2"></i> Detect
+                                </button>
+                            </div>
+                             <!-- Webcam Controls -->
+                            <div id="webcam-controls" class="grid grid-cols-2 gap-4 hidden">
+                               <button id="start-webcam-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 text-sm rounded-lg shadow-lg flex items-center justify-center transition-all transform hover:scale-105">
+                                   <i class="fas fa-play mr-2"></i> Start
+                               </button>
+                               <button id="stop-webcam-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 text-sm rounded-lg shadow-lg hidden flex items-center justify-center transition-all transform hover:scale-105">
+                                   <i class="fas fa-stop mr-2"></i> Stop
+                                </button>
+                            </div>
+                            <p id="webcam-status" class="text-center text-gray-400 mt-2 h-5 text-sm"></p>
+
+                            <!-- Detected Objects List -->
+                            <h3 class="text-xl font-bold my-4 border-b border-gray-700/50 pb-2 flex items-center"><i class="fas fa-bullseye mr-3"></i>Detected Objects</h3>
+                            <div id="predictions-list" class="flex-grow overflow-y-auto pr-2 space-y-2 min-h-[300px]">
+                                <div class="text-center text-gray-500 pt-16">
+                                    <i class="fas fa-search text-4xl mb-3"></i>
+                                    <p>Waiting for detection...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 
+      FIXED: Combined all JavaScript into one <script> tag.
+      FIXED: Integrated your drag-and-drop logic directly with event listeners.
+      FIXED: Corrected drawBoundingBoxes to remove percentage and handle webcam mirroring.
+    -->
+    <script>
+        // --- Constants & Elements ---
+        const API_URL = "/detect";
+        
+        // Tabs
+        const imageTabBtn = document.getElementById('image-tab-btn');
+        const webcamTabBtn = document.getElementById('webcam-tab-btn');
+        const imageTab = document.getElementById('image-tab');
+        const webcamTab = document.getElementById('webcam-tab');
+        
+        // Image Elements
+        const imageControls = document.getElementById('image-controls');
+        const fileUpload = document.getElementById('file-upload');
+        const uploadedImage = document.getElementById('uploaded-image');
+        const imageCanvas = document.getElementById('image-canvas');
+        const imageContainer = document.getElementById('image-container');
+        const imagePlaceholder = document.getElementById('image-placeholder');
+        const detectImageBtn = document.getElementById('detect-image-btn');
+        const imageProcessingOverlay = document.getElementById('image-processing-overlay');
+        const imageCtx = imageCanvas.getContext('2d');
+        
+        // Webcam Elements
+        const webcamControls = document.getElementById('webcam-controls');
+        const webcamVideo = document.getElementById('webcam');
+        const webcamCanvas = document.getElementById('webcam-canvas');
+        const webcamCtx = webcamCanvas.getContext('2d');
+        const startWebcamBtn = document.getElementById('start-webcam-btn');
+        const stopWebcamBtn = document.getElementById('stop-webcam-btn');
+        const webcamStatus = document.getElementById('webcam-status');
+        
+        // Predictions
+        const predictionsList = document.getElementById('predictions-list');
+        
+        let animationFrameId = null;
+        let isWebcamDetecting = false;
+
+        // --- TAB SWITCHING LOGIC ---
+        imageTabBtn.addEventListener('click', () => switchTab('image'));
+        webcamTabBtn.addEventListener('click', () => switchTab('webcam'));
+
+        function switchTab(tab) {
+            if (tab === 'image') {
+                imageTab.classList.remove('hidden');
+                imageControls.classList.remove('hidden');
+                webcamTab.classList.add('hidden');
+                webcamControls.classList.add('hidden');
+                imageTabBtn.classList.add('active');
+                webcamTabBtn.classList.remove('active');
+                webcamStatus.classList.add('hidden');
+                stopWebcam();
+            } else {
+                imageTab.classList.add('hidden');
+                imageControls.classList.add('hidden');
+                webcamTab.classList.remove('hidden');
+                webcamControls.classList.remove('hidden');
+                imageTabBtn.classList.remove('active');
+                webcamTabBtn.classList.add('active');
+                webcamStatus.classList.remove('hidden');
+            }
+        }
+
+        // --- Drag and Drop Logic (Integrated) ---
+        imagePlaceholder.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            imagePlaceholder.classList.add('border-indigo-500', 'text-indigo-400');
+        });
+        imagePlaceholder.addEventListener('dragleave', () => {
+            imagePlaceholder.classList.remove('border-indigo-500', 'text-indigo-400');
+        });
+        imagePlaceholder.addEventListener('drop', (e) => {
+            e.preventDefault();
+            imagePlaceholder.classList.remove('border-indigo-500', 'text-indigo-400');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+
+        // --- IMAGE DETECTION LOGIC ---
+        function handleFile(file) {
+            if (!file || !file.type.startsWith("image/")) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                uploadedImage.src = e.target.result;
+                imageContainer.style.display = 'block';
+                imagePlaceholder.style.display = 'none';
+                detectImageBtn.disabled = false;
+                imageCtx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+                updatePredictionsList([]); // Clear previous predictions
+            };
+            reader.readAsDataURL(file);
+        }
+        fileUpload.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        detectImageBtn.addEventListener('click', async () => {
+            if (!uploadedImage.src) return;
+            
+            imageProcessingOverlay.classList.remove('hidden');
+            detectImageBtn.disabled = true;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: uploadedImage.src })
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const predictions = await response.json();
+                imageCanvas.width = uploadedImage.naturalWidth;
+                imageCanvas.height = uploadedImage.naturalHeight;
+                drawBoundingBoxes(predictions, imageCtx, 'image');
+
+            } catch (error) {
+                console.error("Error detecting objects:", error);
+                alert("An error occurred during detection. Check the Flask server console for details.");
+            } finally {
+                imageProcessingOverlay.classList.add('hidden');
+                detectImageBtn.disabled = false;
+            }
+        });
+
+        // --- WEBCAM DETECTION LOGIC ---
+        startWebcamBtn.addEventListener('click', async () => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                    webcamVideo.srcObject = stream;
+                    webcamVideo.onloadedmetadata = () => {
+                        webcamCanvas.width = webcamVideo.videoWidth;
+                        webcamCanvas.height = webcamVideo.videoHeight;
+                        startWebcamBtn.style.display = 'none';
+                        stopWebcamBtn.style.display = 'inline-flex'; // Use flex for icon centering
+                        webcamStatus.textContent = "Webcam active. Detecting objects...";
+                        isWebcamDetecting = true;
+                        predictWebcam();
+                    };
+                } catch (error) {
+                    console.error("Error accessing webcam: ", error);
+                    webcamStatus.textContent = "Could not access webcam. Please check permissions.";
+                }
+            } else {
+                webcamStatus.textContent = "Webcam not supported by your browser.";
+            }
+        });
+
+        function stopWebcam() {
+            isWebcamDetecting = false;
+            if (webcamVideo.srcObject) {
+                webcamVideo.srcObject.getTracks().forEach(track => track.stop());
+                webcamVideo.srcObject = null;
+            }
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            webcamCtx.clearRect(0, 0, webcamCanvas.width, webcamCanvas.height);
+            startWebcamBtn.style.display = 'inline-flex'; // Use flex for icon centering
+            stopWebcamBtn.style.display = 'none';
+            webcamStatus.textContent = "";
+            updatePredictionsList([]); // Clear predictions
+        }
+        stopWebcamBtn.addEventListener('click', stopWebcam);
+
+        async function predictWebcam() {
+            if (!isWebcamDetecting) return;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = webcamVideo.videoWidth;
+            tempCanvas.height = webcamVideo.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(webcamVideo, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: tempCanvas.toDataURL('image/jpeg') })
+                });
+                if (response.ok) {
+                    const predictions = await response.json();
+                    drawBoundingBoxes(predictions, webcamCtx, 'webcam');
+                }
+            } catch(error) {
+                console.error("Webcam detection error:", error);
+            }
+            animationFrameId = requestAnimationFrame(predictWebcam);
+        }
+
+        // --- UI Update & Drawing Utilities ---
+        
+        function updatePredictionsList(predictions) {
+            predictionsList.innerHTML = ''; // Clear existing
+            if (predictions.length === 0) {
+                predictionsList.innerHTML = `<div class="text-center text-gray-500 pt-16">
+                    <i class="fas fa-search text-4xl mb-3"></i>
+                    <p>Waiting for detection...</p>
+                </div>`;
+                return;
+            }
+            
+            // Grouping objects by class name
+            const groupedPredictions = {};
+            predictions.forEach(p => {
+                if (!groupedPredictions[p.class]) {
+                    groupedPredictions[p.class] = 0;
+                }
+                groupedPredictions[p.class]++;
+            });
+
+            // Displaying the grouped list
+            for (const [label, count] of Object.entries(groupedPredictions)) {
+                const item = document.createElement('div');
+                item.className = 'prediction-item rounded-lg p-3 flex items-center justify-between';
+                item.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-tag mr-3 text-indigo-400"></i>
+                        <span class="font-bold text-lg text-white capitalize">${label}</span>
+                    </div>
+                    <span class="font-bold text-lg text-gray-300">${count}</span>
+                `;
+                predictionsList.appendChild(item);
+            }
+        }
+
+        function drawBoundingBoxes(predictions, ctx, mode) {
+    // Optional external list update
+    if (typeof updatePredictionsList === "function") {
+        updatePredictionsList(predictions);
+    }
+
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    const font = "16px Inter, sans-serif";
+    ctx.font = font;
+    ctx.textBaseline = "top";
+
+    const canvasWidth = ctx.canvas.width;
+    const themeColor = "#8b5cf6"; // purple accent
+
+    predictions.forEach(prediction => {
+        const [x, y, width, height] = prediction.bbox;
+        const label = `${prediction.class}`;
+        const padding = 5;
+
+        // Flip the box horizontally if webcam mode
+        const drawX = (mode === 'webcam') ? (canvasWidth - x - width) : x;
+
+        // Draw bounding box
+        ctx.strokeStyle = themeColor;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(drawX, y, width, height);
+
+        // Compute text box size
+        const textWidth = ctx.measureText(label).width;
+        const textHeight = 16;
+        const boxWidth = textWidth + padding * 2;
+        const boxHeight = textHeight + padding * 2;
+
+        // Position label slightly above the box (if space available)
+        const labelY = y - boxHeight >= 0 ? y - boxHeight : y;
+
+        // Draw label background
+        ctx.fillStyle = themeColor;
+        ctx.fillRect(drawX, labelY, boxWidth, boxHeight);
+
+        // --- Fix for inverted webcam text ---
+        if (mode === 'webcam') {
+            ctx.save();
+            ctx.translate(drawX + boxWidth / 2, labelY + boxHeight / 2);
+            ctx.scale(-1, 1); // flip only text, not the box
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(
+                label,
+                -textWidth / 2,
+                -textHeight / 2 + padding / 2
+            );
+            ctx.restore();
+        } else {
+            // Normal text for image mode
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(label, drawX + padding, labelY + padding);
+        }
+    });
+}
+
+    </script>
+</body>
+</html>
